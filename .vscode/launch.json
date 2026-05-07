@@ -1,0 +1,53 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Android WebView: assistsx-js-simple",
+      "type": "android-webview",
+      "request": "attach",
+      "webRoot": "${workspaceFolder}/assistsx-js-simple",
+      "urlFilter": "*5173*",
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "webpack://eruda/*": "${workspaceFolder}/assistsx-js-simple/node_modules/eruda/*",
+        "webpack:/*": "${workspaceFolder}/assistsx-js-simple/*"
+      }
+    },
+    {
+      "name": "Android WebView: assistsx-js-simple + Vite",
+      "type": "android-webview",
+      "request": "attach",
+      "preLaunchTask": "npm: dev - assistsx-js-simple",
+      "webRoot": "${workspaceFolder}/assistsx-js-simple",
+      "urlFilter": "*5173*",
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "webpack://eruda/*": "${workspaceFolder}/assistsx-js-simple/node_modules/eruda/*",
+        "webpack:/*": "${workspaceFolder}/assistsx-js-simple/*"
+      }
+    },
+    {
+      "name": "Android WebView: assistsx-log-simple",
+      "type": "android-webview",
+      "request": "attach",
+      "webRoot": "${workspaceFolder}/assistsx-log-simple",
+      "urlFilter": "*5173*",
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "webpack:/*": "${workspaceFolder}/assistsx-log-simple/*"
+      }
+    },
+    {
+      "name": "Android WebView: assistsx-log-simple + Vite",
+      "type": "android-webview",
+      "request": "attach",
+      "preLaunchTask": "npm: dev - assistsx-log-simple",
+      "webRoot": "${workspaceFolder}/assistsx-log-simple",
+      "urlFilter": "*5173*",
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "webpack:/*": "${workspaceFolder}/assistsx-log-simple/*"
+      }
+    }
+  ]
+}

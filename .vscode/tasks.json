@@ -1,0 +1,45 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "npm",
+      "script": "dev",
+      "path": "assistsx-js-simple",
+      "isBackground": true,
+      "label": "npm: dev - assistsx-js-simple",
+      "problemMatcher": {
+        "owner": "custom",
+        "pattern": { "regexp": "$^" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*> vite",
+          "endsPattern": "Local:.*http://localhost:5173/"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "type": "npm",
+      "script": "dev",
+      "path": "assistsx-log-simple",
+      "isBackground": true,
+      "label": "npm: dev - assistsx-log-simple",
+      "problemMatcher": {
+        "owner": "custom",
+        "pattern": { "regexp": "$^" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*> vite",
+          "endsPattern": "Local:.*http://localhost:5173/"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    }
+  ]
+}

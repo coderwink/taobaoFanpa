@@ -68,7 +68,7 @@ class WxMomentLike {
     clickLikeMoment = async (step: Step): Promise<Step | undefined> => {
         const listNode = step.findById("com.tencent.mm:id/hbs")[0]
 
-        const children = listNode.getChildren()
+        const children = listNode?.getChildren()
 
         for (let i = 0; i < children.length; i++) {
             const child = children[i]
