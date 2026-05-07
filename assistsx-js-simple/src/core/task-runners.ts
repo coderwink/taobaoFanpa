@@ -9,6 +9,7 @@ import { wechatCollectMoment } from '@/core/wechat-collect-moment'
 import { wechatCollectOfficialAccount } from '@/core/wechat-collect-official-account'
 import { wechatUnfollowOfficialAccount } from '@/core/wechat-unfollow-official-account'
 import { wxMomentLike } from '@/core/wx-moment-like'
+import { taobaoLongScreenshotTask } from '@/core/taobao-long-screenshot'
 
 /** 日志页 URL query ?task= 取值 */
 export const TASK_IDS = [
@@ -17,6 +18,7 @@ export const TASK_IDS = [
   'momentLike',
   'collectOfficial',
   'unfollow',
+  'taobaoLongScreenshot',
   'test',
 ] as const
 
@@ -46,6 +48,9 @@ export async function runTaskByQuery(task: string | undefined): Promise<void> {
       break
     case 'collectOfficial':
       wechatCollectOfficialAccount.start()
+      break
+    case 'taobaoLongScreenshot':
+      taobaoLongScreenshotTask.start()
       break
     case 'unfollow': {
       let accounts: string[] = []

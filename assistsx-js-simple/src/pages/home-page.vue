@@ -35,6 +35,8 @@ async function openMomentLikeWithDisclaimer(): Promise<void> {
   await openLogFloat('momentLike')
 }
 
+/** 截屏功能 */
+
 async function openTestFloat() {
   const url = buildTestPanelFloatUrl()
   await float.open(url, { showBottomOperationArea: true })
@@ -54,6 +56,14 @@ async function openTestFloat() {
     </header>
 
     <section class="home-actions" aria-label="快捷操作">
+      <button
+        type="button"
+        class="action action--taobao"
+        @click="openLogFloat('taobaoLongScreenshot')"
+      >
+        <span class="action-title">淘宝长截图</span>
+        <span class="action-sub">自动滚动并截图全页</span>
+      </button>
       <button
         type="button"
         class="action action--account"
@@ -86,6 +96,8 @@ async function openTestFloat() {
         <span class="action-title">批量取关公众号</span>
         <span class="action-sub">先采集列表，再在子页勾选取关</span>
       </button>
+
+
       <button
         v-if="isDev"
         type="button"
@@ -205,6 +217,10 @@ async function openTestFloat() {
 
 .action--unfollow {
   background: linear-gradient(135deg, #c2410c 0%, #ea580c 100%);
+}
+
+.action--taobao {
+  background: linear-gradient(135deg, #ff8c00 0%, #ff5000 100%);
 }
 
 .action--test {
