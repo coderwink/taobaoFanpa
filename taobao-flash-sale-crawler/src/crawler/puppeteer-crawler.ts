@@ -1,8 +1,13 @@
 // src/crawler/puppeteer-crawler.ts
 
+import fs from 'fs';
+import path from 'path';
 import puppeteer, { Browser, Page } from 'puppeteer';
 import { Config } from '../config/config';
 import { logger } from '../utils/logger';
+
+const DEFAULT_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 export class PuppeteerCrawler {
   private browser: Browser | null = null;
@@ -16,46 +21,55 @@ export class PuppeteerCrawler {
   async launch(): Promise<void> {
     logger.info('启动浏览器...');
 
-    this.browser = await puppeteer.launch({
-      headless: this.config.browser.headless,
-      executablePath: this.config.browser.executablePath,
-      userDataDir: this.config.browser.userDataDir,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--disable-gpu',
-      ],
-    });
+    try {
+      this.browser = await puppeteer.launch({
+        headless: this.config.browser.headless,
+        executablePath: this.config.browser.executablePath,
+        userDataDir: this.config.browser.userDataDir,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--disable-gpu',
+        ],
+      });
 
-    this.page = await this.browser.newPage();
+      this.page = await this.browser.newPage();
 
-    await this.page.setViewport({
-      width: this.config.browser.viewport.width,
-      height: this.config.browser.viewport.height,
-    });
+      await this.page.setViewport({
+        width: this.config.browser.viewport.width,
+        height: this.config.browser.viewport.height,
+      });
 
-    // 设置用户代理
-    await this.page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    );
+      // 设置用户代理
+      await this.page.setUserAgent(DEFAULT_USER_AGENT);
 
-    // 设置超时时间
-    await this.page.setDefaultTimeout(this.config.crawler.pageTimeout);
-    await this.page.setDefaultNavigationTimeout(this.config.crawler.pageTimeout);
+      // 设置超时时间
+      await this.page.setDefaultTimeout(this.config.crawler.pageTimeout);
+      await this.page.setDefaultNavigationTimeout(this.config.crawler.pageTimeout);
 
-    logger.info('浏览器启动成功');
+      logger.info('浏览器启动成功');
+    } catch (error) {
+      logger.error('浏览器启动失败', error as Error);
+      await this.close();
+      throw error;
+    }
   }
 
   async close(): Promise<void> {
     if (this.browser) {
       logger.info('关闭浏览器...');
-      await this.browser.close();
-      this.browser = null;
-      this.page = null;
+      try {
+        await this.browser.close();
+      } catch (error) {
+        logger.error('关闭浏览器时出错', error as Error);
+      } finally {
+        this.browser = null;
+        this.page = null;
+      }
       logger.info('浏览器已关闭');
     }
   }
@@ -86,8 +100,6 @@ export class PuppeteerCrawler {
     }
 
     const cookies = await this.page.cookies();
-    const fs = require('fs');
-    const path = require('path');
 
     const cookieDir = path.join(process.cwd(), 'data/cookies');
     if (!fs.existsSync(cookieDir)) {
@@ -104,8 +116,6 @@ export class PuppeteerCrawler {
       throw new Error('浏览器未启动');
     }
 
-    const fs = require('fs');
-    const path = require('path');
     const cookiePath = path.join(process.cwd(), 'data/cookies/taobao-cookies.json');
 
     if (!fs.existsSync(cookiePath)) {
