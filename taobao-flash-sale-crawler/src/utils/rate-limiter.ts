@@ -3,6 +3,9 @@ export class RateLimiter {
   private interval: number;
 
   constructor(interval: number) {
+    if (interval < 0) {
+      throw new Error(`interval must be non-negative, got ${interval}`);
+    }
     this.interval = interval;
   }
 
@@ -19,6 +22,9 @@ export class RateLimiter {
   }
 
   setInterval(interval: number): void {
+    if (interval < 0) {
+      throw new Error(`interval must be non-negative, got ${interval}`);
+    }
     this.interval = interval;
   }
 }

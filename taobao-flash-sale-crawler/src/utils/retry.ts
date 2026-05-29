@@ -13,13 +13,18 @@ export async function withRetry<T>(
 ): Promise<T> {
   const { maxRetries, retryDelay, backoffMultiplier = 2, onRetry } = options;
 
-  let lastError: Error | undefined;
+  if (maxRetries < 1) {
+    throw new Error(`maxRetries must be at least 1, got ${maxRetries}`);
+  }
+
+  let lastError: Error = new Error('unknown error');
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
     } catch (error) {
-      lastError = error as Error;
+      lastError =
+        error instanceof Error ? error : new Error(String(error));
 
       if (attempt < maxRetries) {
         const delay = retryDelay * Math.pow(backoffMultiplier, attempt - 1);
