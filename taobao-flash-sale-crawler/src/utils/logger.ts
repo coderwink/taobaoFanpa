@@ -17,13 +17,22 @@ export interface LogEntry {
   error?: Error;
 }
 
+const LOG_LEVEL_ORDER: Record<LogLevel, number> = {
+  [LogLevel.DEBUG]: 0,
+  [LogLevel.INFO]: 1,
+  [LogLevel.WARN]: 2,
+  [LogLevel.ERROR]: 3,
+};
+
 class Logger {
   private logDir: string;
   private logFile: string;
+  public minLevel: LogLevel;
 
-  constructor(logDir: string = './data/logs') {
+  constructor(logDir: string = './data/logs', minLevel: LogLevel = LogLevel.DEBUG) {
     this.logDir = logDir;
     this.logFile = path.join(logDir, 'crawler.log');
+    this.minLevel = minLevel;
 
     // 确保日志目录存在
     if (!fs.existsSync(logDir)) {
@@ -69,12 +78,21 @@ class Logger {
     return message;
   }
 
+  private shouldLog(level: LogLevel): boolean {
+    return LOG_LEVEL_ORDER[level] >= LOG_LEVEL_ORDER[this.minLevel];
+  }
+
   private writeToFile(entry: LogEntry): void {
-    const logLine = JSON.stringify(entry) + '\n';
-    fs.appendFileSync(this.logFile, logLine, 'utf-8');
+    try {
+      const logLine = JSON.stringify(entry) + '\n';
+      fs.appendFileSync(this.logFile, logLine, 'utf-8');
+    } catch (err) {
+      console.error(`[Logger] Failed to write log to file: ${err}`);
+    }
   }
 
   debug(message: string, context?: Record<string, any>): void {
+    if (!this.shouldLog(LogLevel.DEBUG)) return;
     const entry: LogEntry = {
       timestamp: this.formatTimestamp(),
       level: LogLevel.DEBUG,
@@ -86,6 +104,7 @@ class Logger {
   }
 
   info(message: string, context?: Record<string, any>): void {
+    if (!this.shouldLog(LogLevel.INFO)) return;
     const entry: LogEntry = {
       timestamp: this.formatTimestamp(),
       level: LogLevel.INFO,
@@ -97,6 +116,7 @@ class Logger {
   }
 
   warn(message: string, context?: Record<string, any>): void {
+    if (!this.shouldLog(LogLevel.WARN)) return;
     const entry: LogEntry = {
       timestamp: this.formatTimestamp(),
       level: LogLevel.WARN,
@@ -108,6 +128,7 @@ class Logger {
   }
 
   error(message: string, error?: Error, context?: Record<string, any>): void {
+    if (!this.shouldLog(LogLevel.ERROR)) return;
     const entry: LogEntry = {
       timestamp: this.formatTimestamp(),
       level: LogLevel.ERROR,
@@ -120,7 +141,7 @@ class Logger {
   }
 
   createChildLogger(prefix: string): Logger {
-    const childLogger = new Logger(this.logDir);
+    const childLogger = new Logger(this.logDir, this.minLevel);
     const originalInfo = childLogger.info.bind(childLogger);
     const originalError = childLogger.error.bind(childLogger);
     const originalWarn = childLogger.warn.bind(childLogger);
