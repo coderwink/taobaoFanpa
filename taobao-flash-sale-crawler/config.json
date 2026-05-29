@@ -1,0 +1,24 @@
+{
+  "browser": {
+    "headless": false,
+    "viewport": {
+      "width": 1920,
+      "height": 1080
+    }
+  },
+  "crawler": {
+    "maxRetries": 3,
+    "retryDelay": 2000,
+    "pageTimeout": 30000,
+    "scrollDelay": 1000,
+    "maxScrollTimes": 20,
+    "requestInterval": 1500
+  },
+  "storage": {
+    "jsonDir": "./data/json",
+    "csvDir": "./data/csv",
+    "filenamePrefix": "flash-sale",
+    "dateFormat": "YYYY-MM-DD_HH-mm-ss"
+  },
+  "stores": []
+}
