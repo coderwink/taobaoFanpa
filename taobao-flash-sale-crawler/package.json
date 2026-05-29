@@ -13,8 +13,11 @@
   "keywords": ["taobao", "flash-sale", "crawler", "puppeteer"],
   "author": "",
   "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
-    "puppeteer": "^21.0.0",
+    "puppeteer": "~21.0.0",
     "commander": "^11.0.0",
     "chalk": "^4.1.2",
     "ora": "^7.0.1",
