@@ -8,24 +8,36 @@
     "dev": "ts-node src/index.ts",
     "start": "node dist/index.js",
     "crawl": "ts-node src/index.ts crawl",
-    "login": "ts-node src/index.ts login"
+    "login": "ts-node src/index.ts login",
+    "smart": "tsx src/smart-index.ts",
+    "smart:crawl": "tsx src/smart-index.ts",
+    "manual": "tsx src/manual-index.ts",
+    "chrome": "tsx src/start-chrome.ts",
+    "extract": "tsx src/extract-now.ts"
   },
-  "keywords": ["taobao", "flash-sale", "crawler", "puppeteer"],
+  "keywords": [
+    "taobao",
+    "flash-sale",
+    "crawler",
+    "puppeteer"
+  ],
   "author": "",
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "puppeteer": "~21.0.0",
-    "commander": "^11.0.0",
     "chalk": "^4.1.2",
+    "chrome-launcher": "^1.2.1",
+    "commander": "^11.0.0",
+    "dayjs": "^1.11.10",
     "ora": "^7.0.1",
-    "dayjs": "^1.11.10"
+    "puppeteer": "~21.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.3.0",
     "@types/node": "^20.10.0",
-    "ts-node": "^10.9.0"
+    "ts-node": "^10.9.0",
+    "tsx": "^4.22.4",
+    "typescript": "^5.3.0"
   }
 }

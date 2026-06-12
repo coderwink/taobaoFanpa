@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { float } from 'assistsx-js'
 import { ElMessageBox } from 'element-plus'
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { buildLogPanelFloatUrl, buildTestPanelFloatUrl } from '@/core/float-log-url'
 
 /** 仅开发模式展示首页「测试」入口 */
@@ -11,8 +11,8 @@ onMounted(() => {
   document.title = 'Assists Web示例'
 })
 
-async function openLogFloat(task: string) {
-  const url = buildLogPanelFloatUrl({ task })
+async function openLogFloat(task: string, storeName?: string) {
+  const url = buildLogPanelFloatUrl({ task, storeName })
   await float.open(url, { showBottomOperationArea: true })
 }
 
@@ -35,6 +35,60 @@ async function openMomentLikeWithDisclaimer(): Promise<void> {
   await openLogFloat('momentLike')
 }
 
+/** 会员页 AI 采集：弹窗输入店铺名称后启动 */
+const defaultStoreName = ref('卡诗官方旗舰店')
+
+async function openMemberCollect(): Promise<void> {
+  let storeName = defaultStoreName.value
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '请输入要采集的店铺名称（需与淘宝搜索结果一致）',
+      '会员页 AI 采集',
+      {
+        confirmButtonText: '开始采集',
+        cancelButtonText: '取消',
+        inputValue: storeName,
+        inputPlaceholder: '例如：卡诗官方旗舰店',
+      },
+    )
+    if (value && value.trim()) {
+      storeName = value.trim()
+    }
+  } catch {
+    // 用户取消
+    return
+  }
+  sessionStorage.setItem('memberCollectStoreName', storeName)
+  await openLogFloat('taobaoMemberCollect')
+}
+
+/** 秒杀商品采集：弹窗输入店铺名称后启动 */
+const defaultFlashStoreName = ref('欧莱雅美发官方旗舰店')
+
+async function openFlashSaleCollect(): Promise<void> {
+  let storeName = defaultFlashStoreName.value
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '请输入要采集的店铺名称（留空则采集所有店铺）',
+      '秒杀商品采集',
+      {
+        confirmButtonText: '开始采集',
+        cancelButtonText: '取消',
+        inputValue: storeName,
+        inputPlaceholder: '例如：某某旗舰店',
+      },
+    )
+    if (value !== null) {
+      storeName = value.trim()
+    } else {
+      return
+    }
+  } catch {
+    return
+  }
+  await openLogFloat('flashSaleCollect', storeName)
+}
+
 /** 截屏功能 */
 
 async function openTestFloat() {
@@ -51,11 +105,27 @@ async function openTestFloat() {
         下方任务将在浮窗中打开日志面板并自动执行；日志写入独立 Web 实例，与宿主首页隔离。
       </p>
       <p class="home-version" role="note">
-        目前测试通过版本为 WX8.0.65。
+        目前测试通过版本为 WX8.0.66。
       </p>
     </header>
 
     <section class="home-actions" aria-label="快捷操作">
+      <button
+        type="button"
+        class="action action--member-collect"
+        @click="openMemberCollect"
+      >
+        <span class="action-title">会员页AI采集</span>
+        <span class="action-sub">AI视觉+无障碍自动采集会员页</span>
+      </button>
+      <button
+        type="button"
+        class="action action--flash-sale"
+        @click="openFlashSaleCollect"
+      >
+        <span class="action-title">秒杀商品采集</span>
+        <span class="action-sub">无障碍树采集指定店铺秒杀商品</span>
+      </button>
       <button
         type="button"
         class="action action--taobao"
@@ -63,6 +133,38 @@ async function openTestFloat() {
       >
         <span class="action-title">淘宝长截图</span>
         <span class="action-sub">自动滚动并截图全页</span>
+      </button>
+      <button
+        type="button"
+        class="action action--swiper"
+        @click="openLogFloat('swiperScreenshot')"
+      >
+        <span class="action-title">AI Swiper截图</span>
+        <span class="action-sub">AI识别轮播组件智能截图</span>
+      </button>
+      <button
+        type="button"
+        class="action action--simple"
+        @click="openLogFloat('simpleSwiper')"
+      >
+        <span class="action-title">简易截图</span>
+        <span class="action-sub">截屏+判断+滑动</span>
+      </button>
+      <button
+        type="button"
+        class="action action--probe"
+        @click="openLogFloat('treeProbe')"
+      >
+        <span class="action-title">控件树探测</span>
+        <span class="action-sub">dump无障碍树结构，分析swiper特征</span>
+      </button>
+      <button
+        type="button"
+        class="action action--a11y-swiper"
+        @click="openLogFloat('a11ySwiper')"
+      >
+        <span class="action-title">控件树Swiper遍历</span>
+        <span class="action-sub">纯无障碍树分析，不依赖AI视觉</span>
       </button>
       <button
         type="button"
@@ -223,7 +325,32 @@ async function openTestFloat() {
   background: linear-gradient(135deg, #ff8c00 0%, #ff5000 100%);
 }
 
+.action--swiper {
+  background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
+}
+
+.action--simple {
+  background: linear-gradient(135deg, #06b6d4 0%, #22d3ee 100%);
+}
+
+.action--probe {
+  background: linear-gradient(135deg, #84cc16 0%, #a3e635 100%);
+}
+
+.action--a11y-swiper {
+  background: linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%);
+}
+
 .action--test {
   background: linear-gradient(135deg, #52525b 0%, #71717a 100%);
+}
+
+.action--member-collect {
+  background: linear-gradient(135deg, #e11d48 0%, #f43f5e 100%);
+  grid-column: 1 / -1;
+}
+
+.action--flash-sale {
+  background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
 }
 </style>

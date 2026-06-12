@@ -10,6 +10,12 @@ import { wechatCollectOfficialAccount } from '@/core/wechat-collect-official-acc
 import { wechatUnfollowOfficialAccount } from '@/core/wechat-unfollow-official-account'
 import { wxMomentLike } from '@/core/wx-moment-like'
 import { taobaoLongScreenshotTask } from '@/core/taobao-long-screenshot'
+import { swiperScreenshotTask } from '@/core/swiper-screenshot'
+import { simpleSwiperTask } from '@/core/simple-swiper'
+import { taobaoMemberCollector } from '@/core/taobao-member-collector'
+import { accessibilityTreeProbe } from '@/core/accessibility-tree-probe'
+import { accessibilitySwiperTask } from '@/core/accessibility-swiper'
+import { taobaoFlashSaleCollector } from '@/core/taobao-flash-sale-collector'
 
 /** 日志页 URL query ?task= 取值 */
 export const TASK_IDS = [
@@ -19,6 +25,12 @@ export const TASK_IDS = [
   'collectOfficial',
   'unfollow',
   'taobaoLongScreenshot',
+  'swiperScreenshot',
+  'simpleSwiper',
+  'taobaoMemberCollect',
+  'treeProbe',
+  'a11ySwiper',
+  'flashSaleCollect',
   'test',
 ] as const
 
@@ -31,7 +43,7 @@ export function isKnownTask(task: string | undefined): task is TaskId {
 /**
  * 根据日志页传入的 task 启动对应自动化（浮窗实例内调用）
  */
-export async function runTaskByQuery(task: string | undefined): Promise<void> {
+export async function runTaskByQuery(task: string | undefined, storeName?: string): Promise<void> {
   if (!task || !task.trim()) {
     return
   }
@@ -52,6 +64,34 @@ export async function runTaskByQuery(task: string | undefined): Promise<void> {
     case 'taobaoLongScreenshot':
       taobaoLongScreenshotTask.start()
       break
+    case 'swiperScreenshot':
+      swiperScreenshotTask.start()
+      break
+    case 'simpleSwiper':
+      simpleSwiperTask.start()
+      break
+    case 'taobaoMemberCollect': {
+      // 从 sessionStorage 读取店铺名称
+      const storeName = sessionStorage.getItem('memberCollectStoreName')
+      if (storeName) {
+        taobaoMemberCollector.setStoreName(storeName)
+      }
+      taobaoMemberCollector.start()
+      break
+    }
+    case 'treeProbe':
+      accessibilityTreeProbe.start()
+      break
+    case 'a11ySwiper':
+      accessibilitySwiperTask.start()
+      break
+    case 'flashSaleCollect': {
+      if (storeName) {
+        taobaoFlashSaleCollector.setStoreName(storeName)
+      }
+      taobaoFlashSaleCollector.start()
+      break
+    }
     case 'unfollow': {
       let accounts: string[] = []
       try {

@@ -20,5 +20,12 @@
     "filenamePrefix": "flash-sale",
     "dateFormat": "YYYY-MM-DD_HH-mm-ss"
   },
-  "stores": []
+  "searchUrlTemplate": "https://s.taobao.com/search?q={storeName}",
+  "flashSaleKeywords": ["秒杀", "限时抢", "特价", "清仓", "聚划算"],
+  "stores": [
+    {
+      "storeName": "欧莱雅美发官方旗舰店",
+      "enabled": true
+    }
+  ]
 }

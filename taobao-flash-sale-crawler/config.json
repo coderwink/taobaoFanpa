@@ -1,6 +1,7 @@
 {
   "browser": {
     "headless": false,
+    "executablePath": "C:/Program Files/Google/Chrome/Application/chrome.exe",
     "viewport": {
       "width": 1920,
       "height": 1080
@@ -9,7 +10,7 @@
   "crawler": {
     "maxRetries": 3,
     "retryDelay": 2000,
-    "pageTimeout": 30000,
+    "pageTimeout": 60000,
     "scrollDelay": 1000,
     "maxScrollTimes": 20,
     "requestInterval": 1500
@@ -20,5 +21,12 @@
     "filenamePrefix": "flash-sale",
     "dateFormat": "YYYY-MM-DD_HH-mm-ss"
   },
-  "stores": []
+  "searchUrlTemplate": "https://s.taobao.com/search?q={storeName}",
+  "flashSaleKeywords": ["秒杀", "限时抢", "特价", "清仓", "聚划算"],
+  "stores": [
+    {
+      "storeName": "欧莱雅美发官方旗舰店",
+      "enabled": true
+    }
+  ]
 }

@@ -193,7 +193,16 @@ onMounted(async () => {
   } else {
     task = undefined;
   }
-  await runTaskByQuery(task);
+
+  const rawStore = route.query.storeName;
+  let storeName: string | undefined;
+  if (typeof rawStore === "string") {
+    storeName = rawStore;
+  } else if (Array.isArray(rawStore)) {
+    storeName = rawStore[0] ?? undefined;
+  }
+
+  await runTaskByQuery(task, storeName);
 });
 
 onUnmounted(() => {

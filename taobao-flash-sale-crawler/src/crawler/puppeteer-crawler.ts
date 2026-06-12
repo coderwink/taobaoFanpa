@@ -74,16 +74,18 @@ export class PuppeteerCrawler {
     }
   }
 
-  async navigate(url: string): Promise<void> {
+  async navigate(url: string, waitUntil: 'load' | 'domcontentloaded' | 'networkidle0' | 'networkidle2' = 'domcontentloaded'): Promise<void> {
     if (!this.page) {
       throw new Error('浏览器未启动');
     }
 
     logger.info(`导航到: ${url}`);
     await this.page.goto(url, {
-      waitUntil: 'networkidle2',
+      waitUntil,
       timeout: this.config.crawler.pageTimeout,
     });
+    // 额外等待确保动态内容加载
+    await new Promise(resolve => setTimeout(resolve, 3000));
     logger.info('页面加载完成');
   }
 
@@ -140,9 +142,15 @@ export class PuppeteerCrawler {
     }
 
     try {
-      // 检查是否显示登录按钮
-      const loginButton = await this.page.$('.site-nav-login');
-      return !loginButton;
+      // 检查页面是否包含"请登录"文字
+      const bodyText = await this.page.evaluate(() => document.body?.innerText || '');
+      if (bodyText.includes('请登录') || bodyText.includes('亲，请登录')) {
+        return false;
+      }
+
+      // 检查是否有用户头像或昵称
+      const userAvatar = await this.page.$('.site-nav-user, .site-nav-login-nick, [class*="avatar"], .J_UserName');
+      return !!userAvatar;
     } catch {
       return false;
     }

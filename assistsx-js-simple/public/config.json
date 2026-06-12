@@ -1,8 +1,8 @@
 {
     "name": "assistsx-js示例",
-    "version": "0.0.3",
-    "versionName": "0.0.3",
-    "versionCode": 3,
+    "version": "0.1.3",
+    "versionName": "0.1.3",
+    "versionCode": 13,
     "description": "一个示例插件，展示assistsx-js插件的开发流程",
     "isShowOverlay": false,
     "needScreenCapture": false,

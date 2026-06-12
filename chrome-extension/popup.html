@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>淘宝秒杀采集助手</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>淘宝秒杀采集</h1>
+      <div id="status-badge" class="badge badge-idle">未连接</div>
+    </header>
+
+    <!-- 店铺搜索 -->
+    <div class="search-section">
+      <div class="search-row">
+        <input type="text" id="store-input" placeholder="输入店铺名，如：欧莱雅美发官方旗舰店" />
+        <button id="btn-search" class="btn btn-primary btn-search">搜索秒杀</button>
+      </div>
+    </div>
+
+    <!-- 页面检测 -->
+    <div id="page-info" class="info-bar hidden">
+      <span id="page-url"></span>
+    </div>
+
+    <!-- 操作按钮 -->
+    <div class="actions">
+      <button id="btn-extract" class="btn btn-primary" disabled>
+        采集当前页面
+      </button>
+      <button id="btn-auto" class="btn btn-success" disabled>
+        自动滚动采集
+      </button>
+      <button id="btn-stop" class="btn btn-danger hidden">
+        停止
+      </button>
+    </div>
+
+    <!-- 状态信息 -->
+    <div id="status-bar" class="status-bar hidden">
+      <span id="status-text"></span>
+      <span id="product-count">0 件商品</span>
+    </div>
+
+    <!-- 商品列表 -->
+    <div id="product-list" class="product-list hidden">
+      <div id="product-items"></div>
+    </div>
+
+    <!-- 导出按钮 -->
+    <div id="export-bar" class="export-bar hidden">
+      <button id="btn-export-json" class="btn btn-small" onclick="exportJSON()">导出 JSON</button>
+      <button id="btn-export-csv" class="btn btn-small" onclick="exportCSV()">导出 CSV</button>
+      <button id="btn-copy-json" class="btn btn-small" style="background:#1890ff;color:#fff">复制 JSON</button>
+    </div>
+
+    <!-- 提示 -->
+    <div id="hint" class="hint">
+      请打开淘宝搜索页面，筛选秒杀商品后点击采集
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

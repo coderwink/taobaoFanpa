@@ -33,15 +33,27 @@ export interface ProductStore {
 export interface Product {
   id: string;
   name: string;
+  title?: string; // 兼容注入脚本的字段
   price: ProductPrice;
+  originalPrice?: number;
   image: string;
   detailUrl: string;
+  link?: string; // 兼容注入脚本的字段
   store: ProductStore;
   stock: ProductStock;
   time: ProductTime;
   specs: ProductSpec[];
+  // 从标题解析出的结构化信息
+  category?: string;       // 品类：洗发水、沐浴露、洗衣液等
+  brand?: string;          // 品牌：海飞丝、潘婷、蓝月亮等
+  volume?: string;         // 规格/容量：750ml、500g、1L等
+  attributes?: string[];   // 属性标签：去屑、滋润、控油等
+  sales?: number;
+  isFlashSale?: boolean;
+  keyword?: string;
+  platform?: 'taobao' | 'tmall';
   collectedAt: string;
-  source: 'crawler' | 'tampermonkey';
+  source: 'crawler' | 'tampermonkey' | 'smart';
 }
 
 export interface Store {

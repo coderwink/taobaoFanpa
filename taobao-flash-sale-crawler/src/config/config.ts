@@ -27,8 +27,7 @@ export interface StorageConfig {
 }
 
 export interface StoreConfig {
-  name: string;
-  url: string;
+  storeName: string;
   enabled: boolean;
 }
 
@@ -36,6 +35,8 @@ export interface Config {
   browser: BrowserConfig;
   crawler: CrawlerConfig;
   storage: StorageConfig;
+  searchUrlTemplate: string;
+  flashSaleKeywords: string[];
   stores: StoreConfig[];
 }
 
@@ -64,6 +65,8 @@ const DEFAULT_CONFIG: Config = {
     filenamePrefix: 'flash-sale',
     dateFormat: 'YYYY-MM-DD_HH-mm-ss',
   },
+  searchUrlTemplate: 'https://s.taobao.com/search?q={storeName}',
+  flashSaleKeywords: ['秒杀', '限时抢', '特价', '清仓', '聚划算'],
   stores: [],
 };
 
