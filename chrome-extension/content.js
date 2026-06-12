@@ -75,22 +75,52 @@
     return (el?.textContent || '').replace(/\s+/g, ' ').trim();
   }
 
+  function extractStructuredPrice(container) {
+    const scopes = [container, ...Array.from(container.querySelectorAll('[class*="priceWrapper" i], [class*="normalPrice" i], [class*="price--" i]'))];
+    for (const scope of scopes) {
+      const intEl = scope.querySelector?.('[class*="priceInt" i]');
+      if (!intEl) continue;
+
+      const intText = (intEl.textContent || '').replace(/[^\d]/g, '');
+      if (!intText) continue;
+
+      const floatEl = scope.querySelector?.('[class*="priceFloat" i]');
+      const rawFloat = (floatEl?.textContent || '').trim();
+      const floatDigits = rawFloat.replace(/[^\d]/g, '');
+      const priceText = floatDigits ? `${intText}.${floatDigits.slice(0, 2)}` : intText;
+      const price = parseFloat(priceText);
+      if (price > 0 && price < 100000) return price;
+    }
+    return 0;
+  }
+
+  function stripSalesText(text) {
+    return (text || '')
+      .replace(/\d+(?:\.\d+)?\s*万\+?\s*(?:人付款|人收货|人购买|人想要|已售|售出)/g, '')
+      .replace(/\d+\+?\s*(?:人付款|人收货|人购买|人想要|已售|售出)/g, '');
+  }
+
   function extractCurrentPrice(container) {
-    // 方法1: 找 class 包含 price 的元素
+    // 方法1: 淘宝 2025 搜索卡片会把价格拆成 priceInt / priceFloat，优先读结构化节点
+    const structuredPrice = extractStructuredPrice(container);
+    if (structuredPrice > 0) return structuredPrice;
+
+    // 方法2: 找 class 包含 price 的元素
     const priceEls = container.querySelectorAll('[class*="price"], [class*="Price"]');
     for (const el of Array.from(priceEls)) {
       const cls = (el.className || '').toLowerCase();
       const tag = el.tagName.toLowerCase();
       if (cls.includes('origin') || cls.includes('del') || cls.includes('cross')
+          || cls.includes('sales') || cls.includes('sold') || cls.includes('desc')
           || tag === 'del' || tag === 's') {
         continue;
       }
-      const text = el.textContent?.trim() || '';
+      const text = stripSalesText(el.textContent?.trim() || '');
       const price = parsePrice(text);
       if (price > 0) return price;
     }
 
-    // 方法2: 遍历文本节点匹配 ¥XX.XX
+    // 方法3: 遍历文本节点匹配 ¥XX.XX
     const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
     while (walker.nextNode()) {
       const node = walker.currentNode;
@@ -102,7 +132,7 @@
           || parentCls.includes('origin') || parentCls.includes('del') || parentCls.includes('cross')) {
         continue;
       }
-      const text = node.textContent || '';
+      const text = stripSalesText(node.textContent || '');
       if (text.includes('¥') || /\d+\.\d+/.test(text)) {
         const price = parsePrice(text);
         if (price > 0 && price < 100000) return price;
@@ -360,32 +390,54 @@
 
   // ==================== 店铺名提取 ====================
 
+  function cleanShopName(text) {
+    return (text || '')
+      .replace(/\s+/g, '')
+      .replace(/^(?:回头客|粉丝|收藏|关注|已售|月销)\d+(?:\.\d+)?万?\+?/, '')
+      .replace(/旺旺在线.*$/, '')
+      .trim();
+  }
+
   function extractShopName(container) {
-    // 方法1: 找 shopNameText / shopName 类的元素（淘宝 hash 类名）
-    const shopEls = container.querySelectorAll('[class*="shopNameText" i], [class*="shopName--" i], [class*="shopName " i]');
-    for (const el of shopEls) {
-      const text = (el.textContent || '').trim();
+    // 方法1: 优先找最小的 shopNameText 节点，避免外层 a 把"回头客100万"拼进来
+    const exactShopEls = container.querySelectorAll('[class*="shopNameText" i]');
+    for (const el of exactShopEls) {
+      const text = cleanShopName(el.textContent || '');
       if (text.length >= 2 && text.length <= 30 && !/¥|\d{5,}/.test(text)) {
         return text;
       }
     }
-    // 方法2: 找包含"店"字的短文本节点
+
+    // 方法2: 找 shopName 包裹节点，并清洗可能混入的店铺标签
+    const shopEls = container.querySelectorAll('[class*="shopName--" i], [class*="shopName " i]');
+    for (const el of shopEls) {
+      const text = cleanShopName(el.textContent || '');
+      if (text.length >= 2 && text.length <= 30 && !/¥|\d{5,}/.test(text)) {
+        return text;
+      }
+    }
+    // 方法3: 找旺旺 data-nick
+    const nickEl = container.querySelector('[data-nick]');
+    const nick = cleanShopName(nickEl?.getAttribute('data-nick') || '');
+    if (nick.length >= 2 && nick.length <= 30) return nick;
+
+    // 方法4: 找包含"店"字的短文本节点
     const allText = container.querySelectorAll('a, span, div');
     for (const el of allText) {
-      const text = (el.textContent || '').trim();
+      const text = cleanShopName(el.textContent || '');
       if (text.length >= 3 && text.length <= 25 && /店$/.test(text)
         && !/¥|\d{5,}|件|人|售|旺旺/.test(text)) {
         return text;
       }
     }
-    // 方法3: 正则提取旗舰店等模式
+    // 方法5: 正则提取旗舰店等模式
     const containerText = container.textContent || '';
     const shopMatch = containerText.match(/([\u4e00-\u9fa5]{2,15}(?:官方旗舰店|旗舰店|专卖店|专营店|自营店|体验店))/);
     if (shopMatch) return shopMatch[1];
-    // 方法4: 找链接到店铺的 a 标签
+    // 方法6: 找链接到店铺的 a 标签
     const shopLinks = container.querySelectorAll('a[href*="shop"], a[href*="store"]');
     for (const a of shopLinks) {
-      const text = (a.textContent || '').trim();
+      const text = cleanShopName(a.textContent || '');
       if (text.length >= 2 && text.length <= 30 && !/旺旺|在线/.test(text)) return text;
     }
     return '';
