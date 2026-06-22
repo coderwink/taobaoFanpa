@@ -184,7 +184,29 @@ function escapeHtml(str) {
 // ==================== 导出 ====================
 
 function exportJSON() {
-  const data = JSON.stringify(collectedProducts, null, 2);
+  // 按店铺分组
+  const grouped = {};
+  for (const p of collectedProducts) {
+    const shop = p.shop || '未知店铺';
+    if (!grouped[shop]) {
+      grouped[shop] = [];
+    }
+    grouped[shop].push(p);
+  }
+
+  // 构建输出数据
+  const output = {
+    total: collectedProducts.length,
+    shopCount: Object.keys(grouped).length,
+    collectedAt: new Date().toISOString(),
+    shops: Object.entries(grouped).map(([shop, products]) => ({
+      shop,
+      count: products.length,
+      products,
+    })),
+  };
+
+  const data = JSON.stringify(output, null, 2);
   downloadFile(data, 'taobao-products.json', 'application/json');
 }
 
@@ -234,7 +256,28 @@ function downloadFile(content, filename, mimeType) {
 }
 
 function copyJSON() {
-  const data = JSON.stringify(collectedProducts, null, 2);
+  // 按店铺分组
+  const grouped = {};
+  for (const p of collectedProducts) {
+    const shop = p.shop || '未知店铺';
+    if (!grouped[shop]) {
+      grouped[shop] = [];
+    }
+    grouped[shop].push(p);
+  }
+
+  const output = {
+    total: collectedProducts.length,
+    shopCount: Object.keys(grouped).length,
+    collectedAt: new Date().toISOString(),
+    shops: Object.entries(grouped).map(([shop, products]) => ({
+      shop,
+      count: products.length,
+      products,
+    })),
+  };
+
+  const data = JSON.stringify(output, null, 2);
   navigator.clipboard.writeText(data).then(() => {
     statusText.textContent = '已复制 ' + collectedProducts.length + ' 条商品 JSON 到剪贴板';
     statusBar.classList.remove('hidden');
