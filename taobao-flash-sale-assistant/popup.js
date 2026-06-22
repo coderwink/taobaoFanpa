@@ -265,102 +265,180 @@ chrome.runtime.onMessage.addListener((message) => {
 
 // ==================== 店铺搜索 + 秒杀筛选 ====================
 
+// 等待页面加载完成
+function waitForPageLoad(tabId, timeout = 20000) {
+  return new Promise((resolve) => {
+    const listener = (id, changeInfo) => {
+      if (id === tabId && changeInfo.status === 'complete') {
+        chrome.tabs.onUpdated.removeListener(listener);
+        resolve();
+      }
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+    setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(listener);
+      resolve();
+    }, timeout);
+  });
+}
+
+// 确保 content script 已注入
+async function ensureContentScript(tabId) {
+  try {
+    await chrome.tabs.sendMessage(tabId, { action: 'ping' });
+    return true;
+  } catch {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ['content.js'],
+      });
+      await new Promise(r => setTimeout(r, 2000));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+// 点击秒杀筛选按钮
+async function clickFlashSaleFilterWithRetry(tabId, storeKeyword, maxRetries = 5) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await chrome.tabs.sendMessage(tabId, { action: 'clickFlashSaleFilter', storeKeyword });
+      return res;
+    } catch (err) {
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 2000));
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
+// 采集单个店铺的秒杀商品
+async function collectStoreProducts(tabId, storeName) {
+  const searchUrl = `https://s.taobao.com/search?q=${encodeURIComponent(storeName)}`;
+
+  // 跳转到搜索页
+  await chrome.tabs.update(tabId, { url: searchUrl });
+  await waitForPageLoad(tabId);
+  await new Promise(r => setTimeout(r, 5000)); // 等页面渲染
+
+  // 确保 content script 已注入
+  const injected = await ensureContentScript(tabId);
+  if (!injected) throw new Error('注入 content script 失败');
+
+  // 点击秒杀筛选
+  const filterRes = await clickFlashSaleFilterWithRetry(tabId, storeName);
+
+  // 等待筛选生效
+  await new Promise(r => setTimeout(r, 3000));
+
+  // 提取商品
+  const products = await chrome.tabs.sendMessage(tabId, {
+    action: 'extract',
+    storeFilter: storeName,
+    storeKeyword: storeName,
+  });
+
+  return {
+    store: storeName,
+    products: products.products || [],
+    filterClicked: filterRes?.clicked || false,
+  };
+}
+
+// 批量采集多个店铺
+async function batchCollectStores(storeNames) {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab) throw new Error('未找到当前标签页');
+
+  const allProducts = [];
+  const results = [];
+
+  for (let i = 0; i < storeNames.length; i++) {
+    const storeName = storeNames[i];
+    statusText.textContent = `(${i + 1}/${storeNames.length}) 正在采集: ${storeName}`;
+    statusBadge.textContent = '采集中';
+    statusBadge.className = 'badge badge-scraping';
+    pageInfo.classList.remove('hidden');
+    pageUrl.textContent = `第 ${i + 1} 个店铺: ${storeName}`;
+
+    try {
+      const result = await collectStoreProducts(tab.id, storeName);
+      results.push(result);
+      allProducts.push(...result.products);
+      statusText.textContent = `(${i + 1}/${storeNames.length}) ${storeName}: ${result.products.length} 件`;
+    } catch (err) {
+      results.push({ store: storeName, products: [], error: err.message });
+      statusText.textContent = `(${i + 1}/${storeNames.length}) ${storeName}: 失败 - ${err.message}`;
+    }
+
+    // 店铺之间间隔一下
+    if (i < storeNames.length - 1) {
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+
+  return { allProducts, results };
+}
+
+// 单店铺采集（原有逻辑）
 async function searchFlashSale() {
-  const storeName = storeInput.value.trim();
-  if (!storeName) {
+  const inputValue = storeInput.value.trim();
+  if (!inputValue) {
     statusText.textContent = '请输入店铺名';
     statusBar.classList.remove('hidden');
     return;
   }
 
+  // 检查是否是批量模式（包含 | 分隔符）
+  const storeNames = inputValue.split('|').map(s => s.trim()).filter(s => s);
+
   btnSearch.disabled = true;
   btnSearch.textContent = '搜索中...';
-  statusBadge.textContent = '跳转中';
-  statusBadge.className = 'badge badge-scraping';
-  statusText.textContent = '正在打开淘宝搜索页...';
   statusBar.classList.remove('hidden');
 
-  const searchUrl = `https://s.taobao.com/search?q=${encodeURIComponent(storeName)}`;
-
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    await chrome.tabs.update(tab.id, { url: searchUrl });
+    if (storeNames.length > 1) {
+      // 批量模式
+      btnSearch.textContent = `批量采集 (${storeNames.length})`;
+      const { allProducts, results } = await batchCollectStores(storeNames);
 
-    // 等待页面加载完成
-    await new Promise((resolve) => {
-      const listener = (tabId, changeInfo) => {
-        if (tabId === tab.id && changeInfo.status === 'complete') {
-          chrome.tabs.onUpdated.removeListener(listener);
-          resolve();
-        }
-      };
-      chrome.tabs.onUpdated.addListener(listener);
-      setTimeout(() => {
-        chrome.tabs.onUpdated.removeListener(listener);
-        resolve();
-      }, 20000);
-    });
+      collectedProducts = allProducts;
+      const successCount = results.filter(r => !r.error).length;
+      const failCount = results.filter(r => r.error).length;
+      updateUI(allProducts.length, `批量完成: ${successCount} 成功, ${failCount} 失败`);
 
-    // 等页面渲染
-    await new Promise(r => setTimeout(r, 5000));
+      // 显示各店铺结果摘要
+      const summary = results.map(r =>
+        r.error ? `${r.store}: 失败` : `${r.store}: ${r.products.length}件`
+      ).join(' | ');
+      pageUrl.textContent = summary;
+    } else {
+      // 单店铺模式
+      const storeName = storeNames[0];
+      statusText.textContent = `正在采集: ${storeName}...`;
+      statusBadge.textContent = '跳转中';
+      statusBadge.className = 'badge badge-scraping';
 
-    // 先确保 content script 已注入
-    try {
-      statusText.textContent = '检查 content script...';
-      await chrome.tabs.sendMessage(tab.id, { action: 'ping' });
-      statusText.textContent = 'ping 成功，content script 已存在';
-    } catch (pingErr) {
-      statusText.textContent = 'ping 失败: ' + pingErr.message + '，尝试注入...';
-      try {
-        const result = await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ['content.js'],
-        });
-        statusText.textContent = '注入结果: ' + JSON.stringify(result?.map(r => r.result));
-        await new Promise(r => setTimeout(r, 2000));
-      } catch (injectErr) {
-        statusText.textContent = '注入失败: ' + injectErr.message;
-        statusBadge.textContent = '错误';
-        statusBadge.className = 'badge badge-idle';
-        btnSearch.disabled = false;
-        btnSearch.textContent = '搜索秒杀';
-        return;
-      }
+      const result = await collectStoreProducts(
+        (await chrome.tabs.query({ active: true, currentWindow: true }))[0].id,
+        storeName
+      );
+
+      collectedProducts = result.products;
+      updateUI(result.products.length, `${storeName}: ${result.products.length} 件`);
     }
 
-    // 轮询发送消息，最多重试 5 次
-    for (let attempt = 1; attempt <= 5; attempt++) {
-      try {
-        statusText.textContent = `第${attempt}次发送消息...`;
-        const res = await chrome.tabs.sendMessage(tab.id, { action: 'clickFlashSaleFilter', storeKeyword: storeName });
-        statusBadge.textContent = '已连接';
-        statusBadge.className = 'badge badge-connected';
-        if (res?.clicked) {
-          statusText.textContent = '已筛选秒杀商品，可以采集了';
-        } else if (res?.debug) {
-          statusText.textContent = res.debug.join(' | ');
-        } else {
-          statusText.textContent = '返回: ' + JSON.stringify(res);
-        }
-        hint.classList.add('hidden');
-        pageInfo.classList.remove('hidden');
-        pageUrl.textContent = searchUrl;
-        btnExtract.disabled = false;
-        btnAuto.disabled = false;
-        break;
-      } catch (err) {
-        if (attempt < 5) {
-          statusText.textContent = `第${attempt}次失败: ${err.message}，重试...`;
-          await new Promise(r => setTimeout(r, 2000));
-        } else {
-          statusText.textContent = `5次均失败: ${err.message}`;
-          statusBadge.textContent = '错误';
-          statusBadge.className = 'badge badge-idle';
-        }
-      }
-    }
+    hint.classList.add('hidden');
+    pageInfo.classList.remove('hidden');
+    btnExtract.disabled = false;
+    btnAuto.disabled = false;
   } catch (err) {
-    statusText.textContent = '搜索失败: ' + err.message;
+    statusText.textContent = '采集失败: ' + err.message;
     statusBadge.textContent = '错误';
     statusBadge.className = 'badge badge-idle';
   } finally {
