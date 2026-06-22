@@ -174,7 +174,13 @@
   }
 
   function extractSold(text) {
-    const wanMatch = text.match(/(\d+(?:\.\d+)?)\s*万\+?\s*(?:人付款|人收货|人购买|已售|售出)/);
+    // 先清理价格文本，避免价格数字被误匹配为销量
+    // 例如: "¥59.016000人付款" -> 先移除价格 "¥59.01"，再匹配 "6000人付款"
+    const cleanedText = text
+      .replace(/¥\d+(?:\.\d+)?/g, '')  // 移除 ¥XX.XX
+      .replace(/￥\d+(?:\.\d+)?/g, ''); // 移除 ￥XX.XX
+
+    const wanMatch = cleanedText.match(/(\d+(?:\.\d+)?)\s*万\+?\s*(?:人付款|人收货|人购买|已售|售出)/);
     if (wanMatch) return Math.round(parseFloat(wanMatch[1]) * 10000);
 
     const patterns = [
@@ -182,7 +188,7 @@
       /(\d+)\+?\s*人购买/, /售出(\d+)/, /(\d+)\+?\s*人想要/,
     ];
     for (const pattern of patterns) {
-      const match = text.match(pattern);
+      const match = cleanedText.match(pattern);
       if (match) return parseInt(match[1], 10);
     }
     return -1;
@@ -649,7 +655,26 @@
       // 提取库存和销量
       const containerText = container.textContent || '';
       const quantity = extractQuantity(containerText);
-      const sold = extractSold(containerText);
+
+      // 优先从 realSales 类名元素提取销量
+      let sold = -1;
+      const realSalesEl = container.querySelector('[class*="realSales" i]');
+      if (realSalesEl) {
+        const realSalesText = realSalesEl.textContent || '';
+        const realSalesMatch = realSalesText.match(/(\d+(?:\.\d+)?)\s*万?\+?\s*(?:人付款|人收货|人购买|已售|售出)/);
+        if (realSalesMatch) {
+          const num = parseFloat(realSalesMatch[1]);
+          sold = realSalesText.includes('万') ? Math.round(num * 10000) : parseInt(num, 10);
+        } else {
+          // 尝试直接匹配数字
+          const numMatch = realSalesText.match(/(\d+)/);
+          if (numMatch) sold = parseInt(numMatch[1], 10);
+        }
+      }
+      // 如果 realSales 没找到，再从容器文本提取
+      if (sold === -1) {
+        sold = extractSold(containerText);
+      }
 
       // 平台
       const platform = href.includes('tmall.com') ? 'tmall' : 'taobao';
@@ -697,30 +722,21 @@
       }
     }
 
-    // 1. 智能去重  2. 秒杀商品 + 店铺名联合过滤
     const allProducts = Array.from(seen.values());
-    const deduped = deduplicateProducts(allProducts);
-
-    // 调试日志
-    console.log(`[淘宝秒杀采集] 总商品数: ${allProducts.length}, 去重后: ${deduped.length}`);
-    console.log('[淘宝秒杀采集] 所有商品:', deduped.map(p => ({
+    console.log(`[淘宝秒杀采集] 采集商品数: ${allProducts.length}`);
+    console.log('[淘宝秒杀采集] 所有商品:', allProducts.map(p => ({
       title: p.title.substring(0, 30),
       shop: p.shop,
-      isFlashSale: p.isFlashSale,
-      flashSaleReason: p.flashSaleReason
+      isFlashSale: p.isFlashSale
     })));
 
-    // 第一步：只保留秒杀商品（有"正在秒杀"标记的商品）
-    const flashSaleProducts = deduped.filter(p => p.isFlashSale);
-    console.log(`[淘宝秒杀采集] 秒杀商品数: ${flashSaleProducts.length}`);
-
     if (!storeKeyword) {
-      // 没有搜索关键词：返回所有秒杀商品
-      return flashSaleProducts;
+      // 没有搜索关键词：返回所有商品
+      return allProducts;
     }
 
-    // 第二步：在秒杀商品中，筛选出符合店铺搜索关键词的商品
-    const filtered = flashSaleProducts.filter(p => {
+    // 第二步：筛选出符合店铺搜索关键词的商品
+    const filtered = allProducts.filter(p => {
       return isShopMatchKeyword(p.shop, p.title, storeKeyword);
     });
     console.log(`[淘宝秒杀采集] 店铺筛选后: ${filtered.length}`);
@@ -739,6 +755,8 @@
     window.scrollBy(0, window.innerHeight);
     setTimeout(() => {
       let products = extractProducts(searchStoreKeyword);
+      // 只保留有商品ID的
+      products = products.filter(p => p.id);
       if (currentStoreFilter) {
         const kw = currentStoreFilter.toLowerCase();
         products = products.filter(p => (p.shop || '').toLowerCase().includes(kw) || (p.title || '').toLowerCase().includes(kw));
@@ -775,6 +793,8 @@
 
     // 先提取一次
     let products = extractProducts(searchStoreKeyword);
+    // 只保留有商品ID的
+    products = products.filter(p => p.id);
     if (currentStoreFilter) {
       const kw = currentStoreFilter.toLowerCase();
       products = products.filter(p => (p.shop || '').toLowerCase().includes(kw) || (p.title || '').toLowerCase().includes(kw));
@@ -794,7 +814,9 @@
       clearTimeout(autoScrollTimer);
       autoScrollTimer = null;
     }
-    const products = extractProducts(searchStoreKeyword);
+    let products = extractProducts(searchStoreKeyword);
+    // 只保留有商品ID的
+    products = products.filter(p => p.id);
     sendResponse({ products, status: 'stopped', total: products.length });
   }
 
@@ -805,6 +827,12 @@
       case 'extract': {
         if (message.storeKeyword) searchStoreKeyword = message.storeKeyword;
         let products = extractProducts(searchStoreKeyword);
+
+        // 只保留有商品ID的
+        products = products.filter(p => p.id);
+        console.log(`[淘宝秒杀采集] 采集商品: ${products.length} 件`);
+
+        // 店铺名过滤
         if (message.storeFilter) {
           currentStoreFilter = message.storeFilter.trim();
           const kw = currentStoreFilter.toLowerCase();

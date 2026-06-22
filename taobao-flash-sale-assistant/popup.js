@@ -78,8 +78,7 @@ async function extract() {
     const storeFilter = storeInput.value.trim();
     const response = await sendMessageToContent({ action: 'extract', storeFilter, storeKeyword: storeFilter });
     collectedProducts = response.products || [];
-    const flashCount = collectedProducts.filter(p => p.isFlashSale).length;
-    updateUI(response.total || 0, `秒杀商品 ${flashCount} 件`);
+    updateUI(response.total || 0, `采集完成 ${collectedProducts.length} 件`);
   } catch (err) {
     statusText.textContent = '采集失败: ' + err.message;
     statusBadge.textContent = '错误';
@@ -153,6 +152,8 @@ function renderProducts() {
     const tag = p.platform === 'tmall' ? '<span class="product-tag">天猫</span>' : '';
     const flashTag = p.isFlashSale ? '<span class="product-tag" style="background:#ff4400;color:#fff">秒杀</span>' : '';
     const shopTag = p.shop ? `<span class="product-tag" style="background:#f0f0f0;color:#333">${escapeHtml(p.shop)}</span>` : '';
+    const quantityStr = p.quantity >= 0 ? `<span class="product-tag" style="background:#e6f7ff;color:#1890ff">库存${p.quantity}</span>` : '';
+    const soldStr = p.sold >= 0 ? `<span class="product-tag" style="background:#f6ffed;color:#52c41a">已售${p.sold}</span>` : '';
 
     div.innerHTML = `
       ${imgSrc ? `<img class="product-img" src="${imgSrc}" alt="" loading="lazy">` : '<div class="product-img"></div>'}
@@ -163,6 +164,8 @@ function renderProducts() {
           ${origStr}
           ${flashTag}
           ${shopTag}
+          ${quantityStr}
+          ${soldStr}
           <span class="product-id">ID: ${p.id}</span>
           ${tag}
         </div>
@@ -246,9 +249,8 @@ function copyJSON() {
 chrome.runtime.onMessage.addListener((message) => {
   if (message.type === 'scrollUpdate') {
     collectedProducts = message.products || [];
-    const flashCount = collectedProducts.filter(p => p.isFlashSale).length;
     updateUI(message.total || 0,
-      message.status === 'done' ? `采集完成，秒杀 ${flashCount} 件` : `已滚动，秒杀 ${flashCount} 件`
+      message.status === 'done' ? `采集完成 ${collectedProducts.length} 件` : `已滚动 ${collectedProducts.length} 件`
     );
     if (message.status === 'done') {
       btnStop.classList.add('hidden');
