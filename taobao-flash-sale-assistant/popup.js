@@ -305,6 +305,16 @@ async function collectStoreProducts(tabId, storeName) {
   // 点击秒杀筛选
   const filterRes = await clickFlashSaleFilterWithRetry(tabId, storeName);
 
+  // 如果没有找到秒杀筛选按钮，说明该店铺没有秒杀商品，直接返回空结果
+  if (!filterRes?.clicked) {
+    return {
+      store: storeName,
+      products: [],
+      filterClicked: false,
+      noFlashSale: true,
+    };
+  }
+
   // 等待筛选生效
   await new Promise(r => setTimeout(r, 3000));
 
@@ -318,7 +328,7 @@ async function collectStoreProducts(tabId, storeName) {
   return {
     store: storeName,
     products: products.products || [],
-    filterClicked: filterRes?.clicked || false,
+    filterClicked: true,
   };
 }
 
@@ -342,7 +352,11 @@ async function batchCollectStores(storeNames) {
       const result = await collectStoreProducts(tab.id, storeName);
       results.push(result);
       allProducts.push(...result.products);
-      statusText.textContent = `(${i + 1}/${storeNames.length}) ${storeName}: ${result.products.length} 件`;
+      if (result.noFlashSale) {
+        statusText.textContent = `(${i + 1}/${storeNames.length}) ${storeName}: 无秒杀商品`;
+      } else {
+        statusText.textContent = `(${i + 1}/${storeNames.length}) ${storeName}: ${result.products.length} 件`;
+      }
     } catch (err) {
       results.push({ store: storeName, products: [], error: err.message });
       statusText.textContent = `(${i + 1}/${storeNames.length}) ${storeName}: 失败 - ${err.message}`;
@@ -381,14 +395,17 @@ async function searchFlashSale() {
       const { allProducts, results } = await batchCollectStores(storeNames);
 
       collectedProducts = allProducts;
-      const successCount = results.filter(r => !r.error).length;
+      const successCount = results.filter(r => !r.error && !r.noFlashSale).length;
+      const noFlashCount = results.filter(r => r.noFlashSale).length;
       const failCount = results.filter(r => r.error).length;
-      updateUI(allProducts.length, `批量完成: ${successCount} 成功, ${failCount} 失败`);
+      updateUI(allProducts.length, `批量完成: ${successCount} 有秒杀, ${noFlashCount} 无秒杀, ${failCount} 失败`);
 
       // 显示各店铺结果摘要
-      const summary = results.map(r =>
-        r.error ? `${r.store}: 失败` : `${r.store}: ${r.products.length}件`
-      ).join(' | ');
+      const summary = results.map(r => {
+        if (r.error) return `${r.store}: 失败`;
+        if (r.noFlashSale) return `${r.store}: 无秒杀`;
+        return `${r.store}: ${r.products.length}件`;
+      }).join(' | ');
       pageUrl.textContent = summary;
     } else {
       // 单店铺模式
@@ -403,7 +420,11 @@ async function searchFlashSale() {
       );
 
       collectedProducts = result.products;
-      updateUI(result.products.length, `${storeName}: ${result.products.length} 件`);
+      if (result.noFlashSale) {
+        updateUI(0, `${storeName}: 无秒杀商品`);
+      } else {
+        updateUI(result.products.length, `${storeName}: ${result.products.length} 件`);
+      }
     }
 
     hint.classList.add('hidden');
