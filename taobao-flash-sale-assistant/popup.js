@@ -20,6 +20,7 @@ const exportBar = document.getElementById('export-bar');
 const hint = document.getElementById('hint');
 const btnSearch = document.getElementById('btn-search');
 const storeInput = document.getElementById('store-input');
+const btnCopyJson = document.getElementById('btn-copy-json');
 
 // ==================== 页面检测 ====================
 
@@ -182,78 +183,6 @@ function escapeHtml(str) {
 }
 
 // ==================== 导出 ====================
-
-function exportJSON() {
-  // 按店铺分组
-  const grouped = {};
-  for (const p of collectedProducts) {
-    const shop = p.shop || '未知店铺';
-    if (!grouped[shop]) {
-      grouped[shop] = [];
-    }
-    grouped[shop].push(p);
-  }
-
-  // 构建输出数据
-  const output = {
-    total: collectedProducts.length,
-    shopCount: Object.keys(grouped).length,
-    collectedAt: new Date().toISOString(),
-    shops: Object.entries(grouped).map(([shop, products]) => ({
-      shop,
-      count: products.length,
-      products,
-    })),
-  };
-
-  const data = JSON.stringify(output, null, 2);
-  downloadFile(data, 'taobao-products.json', 'application/json');
-}
-
-function exportCSV() {
-  const header = '商品ID,商品名称,现价,原价,店铺,搜索关键词,秒杀,秒杀原因,品类,品牌,规格,库存,已售,平台,链接,采集时间';
-  const rows = collectedProducts.map(p => {
-    return [
-      p.id,
-      `"${(p.title || '').replace(/"/g, '""')}"`,
-      p.price,
-      p.originalPrice,
-      `"${(p.shop || '').replace(/"/g, '""')}"`,
-      `"${(p.searchKeyword || '').replace(/"/g, '""')}"`,
-      p.isFlashSale ? '是' : '否',
-      `"${(p.flashSaleReason || '').replace(/"/g, '""')}"`,
-      p.category,
-      p.brand,
-      p.volume,
-      p.quantity >= 0 ? p.quantity : '',
-      p.sold >= 0 ? p.sold : '',
-      p.platform,
-      p.link,
-      p.collectedAt,
-    ].join(',');
-  });
-  const csv = '\uFEFF' + [header, ...rows].join('\n');
-  downloadFile(csv, 'taobao-products.csv', 'text/csv;charset=utf-8');
-}
-
-function downloadFile(content, filename, mimeType) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  chrome.downloads.download({
-    url,
-    filename,
-    saveAs: false,
-    conflictAction: 'uniquify',
-  }, (downloadId) => {
-    if (chrome.runtime.lastError || !downloadId) {
-      statusText.textContent = '导出失败: ' + (chrome.runtime.lastError?.message || '未知错误');
-      statusBar.classList.remove('hidden');
-      URL.revokeObjectURL(url);
-      return;
-    }
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-  });
-}
 
 function copyJSON() {
   // 按店铺分组
@@ -443,6 +372,7 @@ async function searchFlashSale() {
   btnSearch.disabled = true;
   btnSearch.textContent = '搜索中...';
   statusBar.classList.remove('hidden');
+  btnCopyJson.disabled = true;
 
   try {
     if (storeNames.length > 1) {
@@ -480,6 +410,7 @@ async function searchFlashSale() {
     pageInfo.classList.remove('hidden');
     btnExtract.disabled = false;
     btnAuto.disabled = false;
+    btnCopyJson.disabled = false;
   } catch (err) {
     statusText.textContent = '采集失败: ' + err.message;
     statusBadge.textContent = '错误';
@@ -487,6 +418,7 @@ async function searchFlashSale() {
   } finally {
     btnSearch.disabled = false;
     btnSearch.textContent = '搜索秒杀';
+    btnCopyJson.disabled = false;
   }
 }
 
@@ -496,8 +428,6 @@ btnExtract.addEventListener('click', extract);
 btnAuto.addEventListener('click', startAutoScroll);
 btnStop.addEventListener('click', stopAutoScroll);
 btnSearch.addEventListener('click', searchFlashSale);
-document.getElementById('btn-export-json').addEventListener('click', exportJSON);
-document.getElementById('btn-export-csv').addEventListener('click', exportCSV);
 document.getElementById('btn-copy-json').addEventListener('click', copyJSON);
 
 // ==================== 初始化 ====================
