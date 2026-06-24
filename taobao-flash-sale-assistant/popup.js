@@ -216,6 +216,154 @@ function copyJSON() {
   });
 }
 
+function copyCSV() {
+  if (collectedProducts.length === 0) {
+    statusText.textContent = '没有可导出的数据';
+    statusBar.classList.remove('hidden');
+    return;
+  }
+
+  // 生成 HTML 表格，Excel 粘贴时自动识别列和格式
+  const ths = ['商品ID', '商品标题', '售价', '原价', '库存', '已售', '平台', '店铺', '品牌', '分类', '关键词', '秒杀', '链接', '图片', '采集时间'];
+  const trs = collectedProducts.map(p => {
+    const tds = [
+      p.id, p.title, p.price, p.originalPrice, p.quantity, p.sold,
+      p.platform === 'tmall' ? '天猫' : '淘宝',
+      p.shop, p.brand, p.category, p.searchKeyword,
+      p.isFlashSale ? '是' : '否',
+      p.link, p.image, p.collectedAt,
+    ];
+    return '<tr>' + tds.map((td, i) => {
+      // 商品ID列：加 Excel 文本格式，防止科学计数法
+      const style = i === 0 ? ` style="mso-number-format:'\\@'"` : '';
+      return '<td' + style + '>' + escapeHtml(String(td ?? '')) + '</td>';
+    }).join('') + '</tr>';
+  }).join('');
+
+  const html = '<table>'
+    + '<tr>' + ths.map(h => '<th>' + h + '</th>').join('') + '</tr>'
+    + trs
+    + '</table>';
+
+  // 同时写入 HTML 和纯文本，Excel 优先读 HTML
+  const plainText = [ths.join('\t'), ...collectedProducts.map(p =>
+    [p.id, p.title, p.price, p.originalPrice, p.quantity, p.sold,
+      p.platform === 'tmall' ? '天猫' : '淘宝',
+      p.shop, p.brand, p.category, p.searchKeyword,
+      p.isFlashSale ? '是' : '否',
+      p.link, p.image, p.collectedAt,
+    ].join('\t')
+  )].join('\n');
+
+  const blob = new Blob([html], { type: 'text/html' });
+  const textBlob = new Blob([plainText], { type: 'text/plain' });
+  const clipboardItem = new ClipboardItem({
+    'text/html': blob,
+    'text/plain': textBlob,
+  });
+
+  navigator.clipboard.write([clipboardItem]).then(() => {
+    statusText.textContent = '已复制 ' + collectedProducts.length + ' 条到剪贴板，粘贴到 Excel 自动分列';
+    statusBar.classList.remove('hidden');
+  }).catch(() => {
+    statusText.textContent = '复制失败';
+    statusBar.classList.remove('hidden');
+  });
+}
+
+function openInTab() {
+  if (collectedProducts.length === 0) {
+    statusText.textContent = '没有可导出的数据';
+    statusBar.classList.remove('hidden');
+    return;
+  }
+
+  // 按店铺分组
+  const grouped = {};
+  for (const p of collectedProducts) {
+    const shop = p.shop || '未知店铺';
+    if (!grouped[shop]) grouped[shop] = [];
+    grouped[shop].push(p);
+  }
+
+  const shopCount = Object.keys(grouped).length;
+  const timestamp = new Date().toLocaleString('zh-CN');
+
+  let tableRows = '';
+  let idx = 0;
+  for (const [shop, products] of Object.entries(grouped)) {
+    for (const p of products) {
+      idx++;
+      const flashTag = p.isFlashSale
+        ? '<span style="color:#fff;background:#ff4d4f;padding:1px 6px;border-radius:3px;font-size:12px">秒杀</span>'
+        : '';
+      const platformTag = p.platform === 'tmall'
+        ? '<span style="color:#fff;background:#1890ff;padding:1px 6px;border-radius:3px;font-size:12px">天猫</span>'
+        : '';
+      tableRows += `<tr>
+        <td>${idx}</td>
+        <td>${escapeHtml(shop)}</td>
+        <td title="${escapeHtml(p.id)}">${escapeHtml(p.title)}</td>
+        <td style="color:#ff4d4f;font-weight:bold">¥${p.price}</td>
+        <td style="color:#999;text-decoration:line-through">¥${p.originalPrice}</td>
+        <td>${p.quantity}</td>
+        <td>${p.sold}</td>
+        <td>${platformTag} ${flashTag}</td>
+        <td>${escapeHtml(p.brand || '')}</td>
+        <td><a href="${p.link}" target="_blank" style="color:#1890ff">查看</a></td>
+      </tr>`;
+    }
+  }
+
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>秒杀商品数据 - ${timestamp}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; padding: 20px; }
+    .header { background: #fff; padding: 16px 20px; border-radius: 8px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .header h1 { font-size: 18px; color: #333; margin-bottom: 8px; }
+    .meta { font-size: 13px; color: #666; display: flex; gap: 20px; }
+    .meta span { display: inline-flex; align-items: center; gap: 4px; }
+    .meta strong { color: #ff4d4f; }
+    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    th { background: #fafafa; padding: 10px 12px; text-align: left; font-size: 13px; color: #666; border-bottom: 1px solid #f0f0f0; white-space: nowrap; }
+    td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-size: 13px; color: #333; }
+    tr:hover td { background: #fafafa; }
+    a { text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>淘宝秒杀商品数据</h1>
+    <div class="meta">
+      <span>商品总数: <strong>${collectedProducts.length}</strong> 件</span>
+      <span>店铺数: <strong>${shopCount}</strong> 家</span>
+      <span>采集时间: ${timestamp}</span>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th>店铺</th><th>商品</th><th>售价</th><th>原价</th><th>库存</th><th>已售</th><th>状态</th><th>品牌</th><th>链接</th>
+      </tr>
+    </thead>
+    <tbody>${tableRows}</tbody>
+  </table>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  chrome.tabs.create({ url });
+
+  statusText.textContent = '已在新标签页打开数据';
+  statusBar.classList.remove('hidden');
+}
+
 // ==================== 监听滚动更新 ====================
 
 chrome.runtime.onMessage.addListener((message) => {
@@ -450,6 +598,8 @@ btnAuto.addEventListener('click', startAutoScroll);
 btnStop.addEventListener('click', stopAutoScroll);
 btnSearch.addEventListener('click', searchFlashSale);
 document.getElementById('btn-copy-json').addEventListener('click', copyJSON);
+document.getElementById('btn-copy-csv').addEventListener('click', copyCSV);
+document.getElementById('btn-open-tab').addEventListener('click', openInTab);
 
 // ==================== 初始化 ====================
 
