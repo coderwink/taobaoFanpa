@@ -19,6 +19,7 @@ const productItems = document.getElementById('product-items');
 const exportBar = document.getElementById('export-bar');
 const hint = document.getElementById('hint');
 const btnSearch = document.getElementById('btn-search');
+const btnSearchSubsidy = document.getElementById('btn-search-subsidy');
 const storeInput = document.getElementById('store-input');
 const btnCopyJson = document.getElementById('btn-copy-json');
 
@@ -152,6 +153,7 @@ function renderProducts() {
     const origStr = p.originalPrice > 0 ? `<span class="product-original-price">¥${p.originalPrice}</span>` : '';
     const tag = p.platform === 'tmall' ? '<span class="product-tag">天猫</span>' : '';
     const flashTag = p.isFlashSale ? '<span class="product-tag" style="background:#ff4400;color:#fff">秒杀</span>' : '';
+    const subsidyTag = p.isSubsidy ? '<span class="product-tag" style="background:#ff4d4f;color:#fff">百亿补贴</span>' : '';
     const shopTag = p.shop ? `<span class="product-tag" style="background:#f0f0f0;color:#333">${escapeHtml(p.shop)}</span>` : '';
     const quantityStr = p.quantity >= 0 ? `<span class="product-tag" style="background:#e6f7ff;color:#1890ff">库存${p.quantity}</span>` : '';
     const soldStr = p.sold >= 0 ? `<span class="product-tag" style="background:#f6ffed;color:#52c41a">已售${p.sold}</span>` : '';
@@ -164,6 +166,7 @@ function renderProducts() {
           <span class="product-price">${priceStr}</span>
           ${origStr}
           ${flashTag}
+          ${subsidyTag}
           ${shopTag}
           ${quantityStr}
           ${soldStr}
@@ -224,13 +227,14 @@ function copyCSV() {
   }
 
   // 生成 HTML 表格，Excel 粘贴时自动识别列和格式
-  const ths = ['商品ID', '商品标题', '售价', '原价', '库存', '已售', '平台', '店铺', '品牌', '分类', '关键词', '秒杀', '链接', '图片', '采集时间'];
+  const ths = ['商品ID', '商品标题', '售价', '原价', '库存', '已售', '平台', '店铺', '品牌', '分类', '关键词', '秒杀', '百亿补贴', '链接', '图片', '采集时间'];
   const trs = collectedProducts.map(p => {
     const tds = [
       p.id, p.title, p.price, p.originalPrice, p.quantity, p.sold,
       p.platform === 'tmall' ? '天猫' : '淘宝',
       p.shop, p.brand, p.category, p.searchKeyword,
       p.isFlashSale ? '是' : '否',
+      p.isSubsidy ? '是' : '否',
       p.link, p.image, p.collectedAt,
     ];
     return '<tr>' + tds.map((td, i) => {
@@ -251,6 +255,7 @@ function copyCSV() {
       p.platform === 'tmall' ? '天猫' : '淘宝',
       p.shop, p.brand, p.category, p.searchKeyword,
       p.isFlashSale ? '是' : '否',
+      p.isSubsidy ? '是' : '否',
       p.link, p.image, p.collectedAt,
     ].join('\t')
   )].join('\n');
@@ -297,6 +302,9 @@ function openInTab() {
       const flashTag = p.isFlashSale
         ? '<span style="color:#fff;background:#ff4d4f;padding:1px 6px;border-radius:3px;font-size:12px">秒杀</span>'
         : '';
+      const subsidyTag = p.isSubsidy
+        ? '<span style="color:#fff;background:#ff4d4f;padding:1px 6px;border-radius:3px;font-size:12px">百亿补贴</span>'
+        : '';
       const platformTag = p.platform === 'tmall'
         ? '<span style="color:#fff;background:#1890ff;padding:1px 6px;border-radius:3px;font-size:12px">天猫</span>'
         : '';
@@ -308,7 +316,7 @@ function openInTab() {
         <td style="color:#999;text-decoration:line-through">¥${p.originalPrice}</td>
         <td>${p.quantity}</td>
         <td>${p.sold}</td>
-        <td>${platformTag} ${flashTag}</td>
+        <td>${platformTag} ${flashTag} ${subsidyTag}</td>
         <td>${escapeHtml(p.brand || '')}</td>
         <td><a href="${p.link}" target="_blank" style="color:#1890ff">查看</a></td>
       </tr>`;
@@ -319,7 +327,7 @@ function openInTab() {
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>秒杀商品数据 - ${timestamp}</title>
+  <title>商品数据 - ${timestamp}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; padding: 20px; }
@@ -338,7 +346,7 @@ function openInTab() {
 </head>
 <body>
   <div class="header">
-    <h1>淘宝秒杀商品数据</h1>
+    <h1>淘宝商品数据</h1>
     <div class="meta">
       <span>商品总数: <strong>${collectedProducts.length}</strong> 件</span>
       <span>店铺数: <strong>${shopCount}</strong> 家</span>
@@ -384,6 +392,173 @@ chrome.runtime.onMessage.addListener((message) => {
 });
 
 // ==================== 店铺搜索 + 秒杀筛选 ====================
+
+// 点击百亿补贴筛选按钮
+async function clickSubsidyFilterWithRetry(tabId, storeKeyword, maxRetries = 5) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await chrome.tabs.sendMessage(tabId, { action: 'clickSubsidyFilter', storeKeyword });
+      return res;
+    } catch (err) {
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 2000));
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
+// 采集单个店铺的百亿补贴商品
+async function collectStoreSubsidyProducts(tabId, storeName) {
+  const searchUrl = `https://s.taobao.com/search?q=${encodeURIComponent(storeName)}`;
+
+  // 跳转到搜索页
+  await chrome.tabs.update(tabId, { url: searchUrl });
+  await waitForPageLoad(tabId);
+  await new Promise(r => setTimeout(r, 5000)); // 等页面渲染
+
+  // 确保 content script 已注入
+  const injected = await ensureContentScript(tabId);
+  if (!injected) throw new Error('注入 content script 失败');
+
+  // 点击百亿补贴筛选
+  const filterRes = await clickSubsidyFilterWithRetry(tabId, storeName);
+
+  // 如果没有找到百亿补贴筛选按钮，说明该店铺没有百亿补贴商品，直接返回空结果
+  if (!filterRes?.clicked) {
+    return {
+      store: storeName,
+      products: [],
+      filterClicked: false,
+      noSubsidy: true,
+    };
+  }
+
+  // 等待筛选生效
+  await new Promise(r => setTimeout(r, 3000));
+
+  // 提取商品
+  const products = await chrome.tabs.sendMessage(tabId, {
+    action: 'extract',
+    storeFilter: storeName,
+    storeKeyword: storeName,
+  });
+
+  return {
+    store: storeName,
+    products: products.products || [],
+    filterClicked: true,
+  };
+}
+
+// 批量采集多个店铺的百亿补贴商品
+async function batchCollectSubsidyStores(storeNames) {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab) throw new Error('未找到当前标签页');
+
+  const allProducts = [];
+  const results = [];
+
+  for (let i = 0; i < storeNames.length; i++) {
+    const storeName = storeNames[i];
+    statusText.textContent = `(${i + 1}/${storeNames.length}) 正在采集: ${storeName}`;
+    statusBadge.textContent = '采集中';
+    statusBadge.className = 'badge badge-scraping';
+    pageInfo.classList.remove('hidden');
+    pageUrl.textContent = `第 ${i + 1} 个店铺: ${storeName}`;
+
+    try {
+      const result = await collectStoreSubsidyProducts(tab.id, storeName);
+      results.push(result);
+      allProducts.push(...result.products);
+      if (result.noSubsidy) {
+        statusText.textContent = `(${i + 1}/${storeNames.length}) ${storeName}: 无百亿补贴商品`;
+      } else {
+        statusText.textContent = `(${i + 1}/${storeNames.length}) ${storeName}: ${result.products.length} 件`;
+      }
+    } catch (err) {
+      results.push({ store: storeName, products: [], error: err.message });
+      statusText.textContent = `(${i + 1}/${storeNames.length}) ${storeName}: 失败 - ${err.message}`;
+    }
+
+    // 店铺之间间隔一下
+    if (i < storeNames.length - 1) {
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+
+  return { allProducts, results };
+}
+
+// 搜索百亿补贴
+async function searchSubsidy() {
+  const inputValue = storeInput.value.trim();
+  if (!inputValue) {
+    statusText.textContent = '请输入店铺名';
+    statusBar.classList.remove('hidden');
+    return;
+  }
+
+  // 检查是否是批量模式（包含 | 分隔符）
+  const storeNames = inputValue.split('|').map(s => s.trim()).filter(s => s);
+
+  btnSearchSubsidy.disabled = true;
+  btnSearchSubsidy.textContent = '搜索中...';
+  statusBar.classList.remove('hidden');
+
+  try {
+    if (storeNames.length > 1) {
+      // 批量模式
+      btnSearchSubsidy.textContent = `批量采集 (${storeNames.length})`;
+      const { allProducts, results } = await batchCollectSubsidyStores(storeNames);
+
+      collectedProducts = allProducts;
+      const successCount = results.filter(r => !r.error && !r.noSubsidy).length;
+      const noSubsidyCount = results.filter(r => r.noSubsidy).length;
+      const failCount = results.filter(r => r.error).length;
+      updateUI(allProducts.length, `批量完成: ${successCount} 有百亿补贴, ${noSubsidyCount} 无百亿补贴, ${failCount} 失败`);
+
+      // 显示各店铺结果摘要
+      const summary = results.map(r => {
+        if (r.error) return `${r.store}: 失败`;
+        if (r.noSubsidy) return `${r.store}: 无百亿补贴`;
+        return `${r.store}: ${r.products.length}件`;
+      }).join(' | ');
+      pageUrl.textContent = summary;
+    } else {
+      // 单店铺模式
+      const storeName = storeNames[0];
+      statusText.textContent = `正在采集: ${storeName}...`;
+      statusBadge.textContent = '跳转中';
+      statusBadge.className = 'badge badge-scraping';
+
+      const result = await collectStoreSubsidyProducts(
+        (await chrome.tabs.query({ active: true, currentWindow: true }))[0].id,
+        storeName
+      );
+
+      collectedProducts = result.products;
+      if (result.noSubsidy) {
+        updateUI(0, `${storeName}: 无百亿补贴商品`);
+      } else {
+        updateUI(result.products.length, `${storeName}: ${result.products.length} 件`);
+      }
+    }
+
+    hint.classList.add('hidden');
+    pageInfo.classList.remove('hidden');
+    btnExtract.disabled = false;
+    btnAuto.disabled = false;
+  } catch (err) {
+    statusText.textContent = '采集失败: ' + err.message;
+    statusBadge.textContent = '错误';
+    statusBadge.className = 'badge badge-idle';
+  } finally {
+    btnSearchSubsidy.disabled = false;
+    btnSearchSubsidy.textContent = '搜索百亿补贴';
+  }
+}
 
 // 等待页面加载完成
 function waitForPageLoad(tabId, timeout = 20000) {
@@ -597,6 +772,7 @@ btnExtract.addEventListener('click', extract);
 btnAuto.addEventListener('click', startAutoScroll);
 btnStop.addEventListener('click', stopAutoScroll);
 btnSearch.addEventListener('click', searchFlashSale);
+btnSearchSubsidy.addEventListener('click', searchSubsidy);
 document.getElementById('btn-copy-json').addEventListener('click', copyJSON);
 document.getElementById('btn-copy-csv').addEventListener('click', copyCSV);
 document.getElementById('btn-open-tab').addEventListener('click', openInTab);

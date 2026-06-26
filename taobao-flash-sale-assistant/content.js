@@ -64,6 +64,9 @@
   // ==================== 秒杀关键词 ====================
   const FLASH_SALE_TEXT = '正在秒杀';
 
+  // ==================== 百亿补贴关键词 ====================
+  const SUBSIDY_TEXT = '百亿补贴';
+
   // ==================== 辅助函数 ====================
 
   function parsePrice(text) {
@@ -308,6 +311,58 @@
     return { match: false };
   }
 
+  // ==================== 百亿补贴商品验证 ====================
+
+  function findAllSubsidyElements() {
+    const result = [];
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
+    while (walker.nextNode()) {
+      const el = walker.currentNode;
+      const text = getElementText(el);
+      if (!text.includes(SUBSIDY_TEXT)) continue;
+
+      const parent = el.parentElement;
+      if (parent && getElementText(parent) === text) {
+        continue;
+      }
+      result.push(el);
+    }
+    return result;
+  }
+
+  function isSubsidyProduct(cardEl, linkEl, subsidyElements = []) {
+    // 只认"百亿补贴"四个字
+
+    // 首先检查 cardEl 和 linkEl
+    const scanEls = [cardEl];
+    if (linkEl && linkEl !== cardEl) scanEls.push(linkEl);
+
+    for (const el of scanEls) {
+      if ((el.textContent || '').includes(SUBSIDY_TEXT)) {
+        return { match: true, reason: '百亿补贴' };
+      }
+    }
+
+    // 优先用预扫描到的百亿补贴元素判断，避免扫到整页父级导致误判
+    for (const subsidyEl of subsidyElements) {
+      if (cardEl?.contains(subsidyEl) || linkEl?.contains(subsidyEl)) {
+        return { match: true, reason: '百亿补贴' };
+      }
+    }
+
+    // 如果没找到，向上遍历父级（最多 4 层）查找"百亿补贴"
+    let el = cardEl?.parentElement;
+    for (let depth = 0; depth < 4 && el; depth++) {
+      if (el === document.body) break;
+      if ((el.textContent || '').includes(SUBSIDY_TEXT)) {
+        return { match: true, reason: '百亿补贴' };
+      }
+      el = el.parentElement;
+    }
+
+    return { match: false };
+  }
+
   // ==================== 智能去重 ====================
 
   function normalizeTitle(title) {
@@ -385,6 +440,43 @@
 
     // 3. 兜底：全页面找 title 含秒杀
     const allEls = document.querySelectorAll('[title*="秒杀"]');
+    if (allEls.length > 0) {
+      debug.push(`兜底找到${allEls.length}个`);
+      allEls[0].click();
+      return { clicked: true, debug: [...debug, `兜底命中: ${allEls[0].getAttribute('title')}`] };
+    }
+
+    return { clicked: false, debug };
+  }
+
+  // ==================== 百亿补贴筛选 ====================
+
+  function clickSubsidyFilter() {
+    const debug = [];
+    debug.push(`URL=${location.href.substring(0, 60)}`);
+
+    // 1. 先横向滚动筛选栏
+    const scrollWrapper = document.querySelector('[class*="scrollWrapper"]');
+    if (scrollWrapper) {
+      for (let i = 0; i < 10; i++) scrollWrapper.scrollLeft += 300;
+    }
+
+    // 2. 找所有 filterItem，收集 title
+    const items = document.querySelectorAll('[class*="filterItem"]');
+    debug.push(`items=${items.length}`);
+    const titles = [];
+    for (const el of items) {
+      const t = (el.getAttribute('title') || '').trim();
+      if (t) titles.push(t);
+      if (t.includes('百亿补贴')) {
+        el.click();
+        return { clicked: true, debug: [...debug, `命中: ${t}`] };
+      }
+    }
+    debug.push(`titles=[${titles.join(',')}]`);
+
+    // 3. 兜底：全页面找 title 含百亿补贴
+    const allEls = document.querySelectorAll('[title*="百亿补贴"]');
     if (allEls.length > 0) {
       debug.push(`兜底找到${allEls.length}个`);
       allEls[0].click();
@@ -527,20 +619,13 @@
     if (!keyword) return true; // 没有关键词则不过滤
     const kw = keyword.toLowerCase().trim();
     const shopLower = (shop || '').toLowerCase();
-    const titleLower = (title || '').toLowerCase();
 
     // 移除常见的店铺后缀进行比较
     const cleanShop = shopLower.replace(/官方旗舰店|旗舰店|专卖店|专营店|自营店|体验店/g, '');
     const cleanKw = kw.replace(/官方旗舰店|旗舰店|专卖店|专营店|自营店|体验店/g, '');
 
-    // 店铺名包含关键词（精确匹配）
+    // 只匹配店铺名，不匹配标题，避免误选其他店铺
     if (cleanShop.includes(cleanKw) || cleanKw.includes(cleanShop)) {
-      return true;
-    }
-
-    // 标题中包含店铺名关键词（用于匹配店铺名在标题中的情况）
-    // 但要求关键词长度 >= 2，避免太短的关键词误匹配
-    if (cleanKw.length >= 2 && titleLower.includes(cleanKw)) {
       return true;
     }
 
@@ -597,6 +682,10 @@
     // 预先查找页面中所有包含"正在秒杀"的元素
     const flashElements = findAllFlashSaleElements();
     console.log(`[淘宝秒杀采集] 找到 ${flashElements.length} 个秒杀元素`);
+
+    // 预先查找页面中所有包含"百亿补贴"的元素
+    const subsidyElements = findAllSubsidyElements();
+    console.log(`[淘宝秒杀采集] 找到 ${subsidyElements.length} 个百亿补贴元素`);
 
     for (const linkEl of allLinks) {
       // 跳过推荐区域内的链接：如果分隔文字存在，检查链接是否在分隔文字之后
@@ -694,7 +783,10 @@
       // 验证是否属于秒杀商品
       const flashCheck = isFlashSaleProduct(container, linkEl, flashElements);
 
-      console.log(`[淘宝秒杀采集] 商品: ${title.substring(0, 30)}... | 秒杀: ${flashCheck.match} | 原因: ${flashCheck.reason || '无'}`);
+      // 验证是否属于百亿补贴商品
+      const subsidyCheck = isSubsidyProduct(container, linkEl, subsidyElements);
+
+      console.log(`[淘宝秒杀采集] 商品: ${title.substring(0, 30)}... | 秒杀: ${flashCheck.match} | 百亿补贴: ${subsidyCheck.match}`);
 
       const candidate = {
         id: productId,
@@ -712,6 +804,8 @@
         volume,
         isFlashSale: flashCheck.match,
         flashSaleReason: flashCheck.reason || '',
+        isSubsidy: subsidyCheck.match,
+        subsidyReason: subsidyCheck.reason || '',
         searchKeyword: storeKeyword || '',
         collectedAt: new Date().toISOString(),
       };
@@ -857,6 +951,13 @@
       case 'clickFlashSaleFilter': {
         if (message.storeKeyword) searchStoreKeyword = message.storeKeyword;
         const result = clickFlashSaleFilter();
+        sendResponse(result);
+        break;
+      }
+      case 'clickSubsidyFilter': {
+        if (message.storeKeyword) searchStoreKeyword = message.storeKeyword;
+        const result = clickSubsidyFilter();
+        console.log('[淘宝秒杀采集] clickSubsidyFilter 结果:', result);
         sendResponse(result);
         break;
       }
